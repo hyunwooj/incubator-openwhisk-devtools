@@ -38,7 +38,7 @@ endif
 
 controller: download-cli run
 
-invoker: start-docker-compose
+invoker: setup_local_env start-docker-compose
 
 # Quick-Start is a simple way to get started with OpenWhisk locally
 #   1. at start it builds the project and the docker containers
@@ -204,7 +204,9 @@ check-kafka-ports:
 	echo " ... OK"
 
 .PHONY: setup
-setup:
+setup: setup_local_env setup_api_gateway
+
+setup_local_env:
 	mkdir -p ~/tmp/openwhisk
 	> ~/tmp/openwhisk/local.env
 	printf "DOCKER_BINARY=$(DOCKER_BINARY)\n" >> ~/tmp/openwhisk/local.env
@@ -212,6 +214,7 @@ setup:
 	printf "DOCKER_REGISTRY=$(DOCKER_REGISTRY)\n" >> ~/tmp/openwhisk/local.env
 	printf "DOCKER_IMAGE_PREFIX=$(DOCKER_IMAGE_PREFIX)\n" >> ~/tmp/openwhisk/local.env
 
+setup_api_gateway:
 	echo "  ... preparing api-gateway configuration"
 	rm -rf ~/tmp/openwhisk/api-gateway-config
 	mkdir -p ~/tmp/openwhisk/api-gateway-config/api-gateway
