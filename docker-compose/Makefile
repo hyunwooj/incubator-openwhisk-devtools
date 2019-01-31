@@ -23,6 +23,8 @@ OPENWHISK_PROJECT_HOME ?= ./openwhisk-src
 OPENWHISK_CATALOG_HOME ?= ./openwhisk-catalog
 WSK_CLI ?= $(OPENWHISK_PROJECT_HOME)/bin/wsk
 OPEN_WHISK_DB_PREFIX ?= local_
+PROJECT_NAME ?= openwhisk
+DOCKER_COMPOSE_FILE ?= docker-compose.yml
 
 DOCKER_KERNEL ?= $(shell docker version --format "{{.Server.KernelVersion}}")
 ifeq ("$(UNAME_STR)","Linux")
@@ -33,6 +35,10 @@ endif
 ifndef VERBOSE
 .SILENT:
 endif
+
+controller: download-cli run
+
+invoker: start-docker-compose
 
 # Quick-Start is a simple way to get started with OpenWhisk locally
 #   1. at start it builds the project and the docker containers
@@ -213,53 +219,53 @@ setup:
 	mkdir -p ~/tmp/openwhisk/minio
 	cp -r ./apigateway/* ~/tmp/openwhisk/api-gateway-config/api-gateway/
 	cp -r ./apigateway/rclone ~/tmp/openwhisk
-	$(shell cat ~/tmp/openwhisk/local.env) docker-compose --project-name openwhisk up minio 2>&1 > ~/tmp/openwhisk/setup.log &
+	$(shell cat ~/tmp/openwhisk/local.env) docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) up minio 2>&1 > ~/tmp/openwhisk/setup.log &
 	echo "pinging minio..."
 	until (curl --silent http://$(DOCKER_HOST_IP):9001/ > /dev/null); do printf '.'; sleep 5; done
 	echo " ... OK"
-	$(shell cat ~/tmp/openwhisk/local.env) docker-compose --project-name openwhisk run --rm --no-deps apigateway rclone mkdir minio:api-gateway
-	$(shell cat ~/tmp/openwhisk/local.env) docker-compose --project-name openwhisk run --rm --no-deps apigateway rclone copy --exclude .git /etc/api-gateway/ minio:api-gateway/
-	# $(shell cat ~/tmp/openwhisk/local.env) docker-compose --project-name openwhisk stop minio
-	# $(shell cat ~/tmp/openwhisk/local.env) docker-compose --project-name openwhisk rm -f minio
+	$(shell cat ~/tmp/openwhisk/local.env) docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) run --rm --no-deps apigateway rclone mkdir minio:api-gateway
+	$(shell cat ~/tmp/openwhisk/local.env) docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) run --rm --no-deps apigateway rclone copy --exclude .git /etc/api-gateway/ minio:api-gateway/
+	# $(shell cat ~/tmp/openwhisk/local.env) docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) stop minio
+	# $(shell cat ~/tmp/openwhisk/local.env) docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) rm -f minio
 	$(OPENWHISK_PROJECT_HOME)/ansible/files/genssl.sh $(DOCKER_HOST_IP) server $(OPENWHISK_PROJECT_HOME)/ansible/roles/nginx/files
 	cp $(OPENWHISK_PROJECT_HOME)/ansible/roles/nginx/files/*.pem ~/tmp/openwhisk/api-gateway-ssl
 
 .PHONY: gw
 gw:
-	$(shell cat ~/tmp/openwhisk/local.env) docker-compose --project-name openwhisk up apigateway
+	$(shell cat ~/tmp/openwhisk/local.env) docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) up apigateway
 
 .PHONY: restart
 restart: stop rm start-docker-compose
 
 .PHONY: restart-controller
 restart-controller:
-	$(shell cat ~/tmp/openwhisk/local.env) docker-compose --project-name openwhisk stop controller
-	$(shell cat ~/tmp/openwhisk/local.env) docker-compose --project-name openwhisk rm -f controller
-	$(shell cat ~/tmp/openwhisk/local.env) docker-compose --project-name openwhisk up controller 2>&1 >> ~/tmp/openwhisk/docker-compose.log &
+	$(shell cat ~/tmp/openwhisk/local.env) docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) stop controller
+	$(shell cat ~/tmp/openwhisk/local.env) docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) rm -f controller
+	$(shell cat ~/tmp/openwhisk/local.env) docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) up controller 2>&1 >> ~/tmp/openwhisk/docker-compose.log &
 	echo "waiting for the controller to see the invoker is 'up' ... "
 	until (curl --silent http://$(DOCKER_HOST_IP):8888/invokers | grep "up"); do printf '.'; sleep 5; done
 
 .PHONY: restart-invoker
 restart-invoker:
-	$(shell cat ~/tmp/openwhisk/local.env) docker-compose --project-name openwhisk stop invoker
-	$(shell cat ~/tmp/openwhisk/local.env) docker-compose --project-name openwhisk rm -f invoker
-	echo "waiting for the invoker to be marked 'down' ... "
-	until (curl --silent http://$(DOCKER_HOST_IP):8888/invokers | grep "down"); do printf '.'; sleep 5; done
-	$(shell cat ~/tmp/openwhisk/local.env) docker-compose --project-name openwhisk up invoker 2>&1 >> ~/tmp/openwhisk/docker-compose.log &
+	$(shell cat ~/tmp/openwhisk/local.env) docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) stop invoker
+	$(shell cat ~/tmp/openwhisk/local.env) docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) rm -f invoker
+	# echo "waiting for the invoker to be marked 'down' ... "
+	# until (curl --silent http://$(DOCKER_HOST_IP):8888/invokers | grep "down"); do printf '.'; sleep 5; done
+	$(shell cat ~/tmp/openwhisk/local.env) docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) up invoker 2>&1 >> ~/tmp/openwhisk/docker-compose.log &
 	echo "waiting for the invoker to be marked Healthy ... "
 	until (curl --silent http://$(DOCKER_HOST_IP):8888/invokers | grep "up"); do printf '.'; sleep 5; done
 
 .PHONY: start-docker-compose
 start-docker-compose:
-	$(shell cat ~/tmp/openwhisk/local.env) docker-compose --project-name openwhisk up 2>&1 > ~/tmp/openwhisk/docker-compose.log &
+	$(shell cat ~/tmp/openwhisk/local.env) docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) up 2>&1 > ~/tmp/openwhisk/docker-compose.log &
 
 .PHONY: stop
 stop:
-	$(shell cat ~/tmp/openwhisk/local.env) docker-compose --project-name openwhisk stop
+	$(shell cat ~/tmp/openwhisk/local.env) docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) stop
 
 .PHONY: rm
 rm:
-	$(shell cat ~/tmp/openwhisk/local.env) docker-compose --project-name openwhisk rm -f
+	$(shell cat ~/tmp/openwhisk/local.env) docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) rm -f
 
 .PHONY: init-couchdb
 init-couchdb:
@@ -271,8 +277,8 @@ init-couchdb:
 	rm -rf ~/tmp/openwhisk/src
 	rsync -a $(OPENWHISK_PROJECT_HOME)/* ~/tmp/openwhisk/src --exclude .git --exclude build --exclude tests
 	echo 'Setting up db using ansible container....'; \
-    compose_network=$$(docker-compose --project-name openwhisk ps -q db 2>/dev/null | xargs docker inspect -f '{{range $$index, $$element := .NetworkSettings.Networks}}{{$$index}}{{end}}' | head -n 1); \
-    db_ip_address=$$(docker-compose --project-name openwhisk ps -q db 2>/dev/null | xargs docker inspect -f "{{.NetworkSettings.Networks.$${compose_network}.IPAddress}}"); \
+    compose_network=$$(docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) ps -q db 2>/dev/null | xargs docker inspect -f '{{range $$index, $$element := .NetworkSettings.Networks}}{{$$index}}{{end}}' | head -n 1); \
+    db_ip_address=$$(docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) ps -q db 2>/dev/null | xargs docker inspect -f "{{.NetworkSettings.Networks.$${compose_network}.IPAddress}}"); \
 	docker run --rm -v ~/tmp/openwhisk/src:/openwhisk -w /openwhisk/ansible \
 		--network="$${compose_network}" -t \
 		--add-host="db:$${db_ip_address}" \
@@ -366,7 +372,7 @@ hello-world-perf-test: create-hello-world-function
 
 .PHONY: pull
 pull: download-src setup
-	docker-compose --project-name openwhisk pull
+	docker-compose -f $(DOCKER_COMPOSE_FILE) --project-name $(PROJECT_NAME) pull
 
 # Optional package configuration stages. These commands will install and set up
 # the alarms, cloudant and kakfa packages.
@@ -413,9 +419,9 @@ $(addprefix install-package-,$(PACKAGES)):
 .PHONY: $(addprefix start-provider-,$(PACKAGES))
 $(addprefix start-provider-,$(PACKAGES)):
 	$(eval PACKAGE_NAME:= $(shell echo $(@) | cut -b 16-))
-	$(shell cat ~/tmp/openwhisk/providers.env) docker-compose -f docker-compose.yml -f docker-compose.packages.yml --project-name openwhisk up --no-recreate $(PACKAGE_NAME)provider 2>&1 > ~/tmp/openwhisk/docker-provider-compose.log &
+	$(shell cat ~/tmp/openwhisk/providers.env) docker-compose -f docker-compose.yml -f docker-compose.packages.yml --project-name $(PROJECT_NAME) up --no-recreate $(PACKAGE_NAME)provider 2>&1 > ~/tmp/openwhisk/docker-provider-compose.log &
 
 .PHONY: $(addprefix stop-provider-,$(PACKAGES))
 $(addprefix stop-provider-,$(PACKAGES)): setup-providers
 	$(eval PACKAGE_NAME:= $(shell echo $(@) | cut -b 15-))
-	$(shell cat ~/tmp/openwhisk/providers.env) docker-compose -f docker-compose.yml -f docker-compose.packages.yml --project-name openwhisk stop $(PACKAGE_NAME)provider
+	$(shell cat ~/tmp/openwhisk/providers.env) docker-compose -f docker-compose.yml -f docker-compose.packages.yml --project-name $(PROJECT_NAME) stop $(PACKAGE_NAME)provider
